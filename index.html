@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Fruit Shop</title>
+
+<style>
+body {
+  font-family: sans-serif;
+  text-align: center;
+  margin: 0;
+  background: #f5f5f5;
+}
+
+.screen { display:none; padding:20px; }
+.active { display:block; }
+
+header {
+  background:#ffcc00;
+  padding:15px;
+  font-size:24px;
+}
+
+#status {
+  display:flex;
+  justify-content:space-around;
+  font-size:14px;
+  margin:10px;
+}
+
+#card {
+  background:white;
+  margin:20px;
+  padding:20px;
+  border-radius:15px;
+  font-size:28px;
+}
+
+#shop {
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  padding:10px;
+}
+
+button {
+  font-size:40px;
+  padding:10px;
+  border:none;
+  border-radius:10px;
+  background:white;
+}
+
+#feedback {
+  height:30px;
+  font-size:24px;
+}
+
+#rankingList {
+  background:white;
+  padding:10px;
+  border-radius:10px;
+}
+
+/* ★今回プレイ強調 */
+.latest {
+  color: red;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<!-- スタート -->
+<div id="startScreen" class="screen active">
+  <h1>🍎 Fruit Shop</h1>
+
+  <button id="startBtn" onclick="startTutorial()">Tutorial Start</button>
+  <button onclick="openRanking()">Ranking</button>
+</div>
+
+<!-- ゲーム -->
+<div id="gameScreen" class="screen">
+
+<header>🍎 Fruit Shop</header>
+
+<div id="status">
+  <div id="mode"></div>
+  <div id="time"></div>
+  <div id="coins"></div>
+</div>
+
+<div id="card"></div>
+<div id="feedback"></div>
+
+<div id="shop">
+  <button onclick="answer('apple')">🍎</button>
+  <button onclick="answer('banana')">🍌</button>
+  <button onclick="answer('grape')">🍇</button>
+  <button onclick="answer('orange')">🍊</button>
+  <button onclick="answer('peach')">🍑</button>
+  <button onclick="answer('lemon')">🍋</button>
+</div>
+
+</div>
+
+<!-- ランキング -->
+<div id="rankingScreen" class="screen">
+  <h2>🏆 Ranking</h2>
+  <div id="rankingList"></div>
+  <button onclick="backHome()">Back</button>
+</div>
+
+<script>
+
+const fruits = [
+  {name:"apple", article:"an", emoji:"🍎"},
+  {name:"banana", article:"a", emoji:"🍌"},
+  {name:"grape", article:"a", emoji:"🍇"},
+  {name:"orange", article:"an", emoji:"🍊"},
+  {name:"peach", article:"a", emoji:"🍑"},
+  {name:"lemon", article:"a", emoji:"🍋"}
+];
+
+let current=null;
+let last=null;
+
+let mode="tutorial";
+
+let tutorialScore=0;
+let coins=0;
+
+let time=60;
+let timer=null;
+
+let tutorialCleared=false;
+
+let ranking = JSON.parse(localStorage.getItem("ranking")||"[]");
+
+// ---------------- 画面切替
+function show(s){
+  document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));
+  document.getElementById(s).classList.add("active");
+}
+
+// ---------------- 問題
+function newQ(){
+  let next;
+
+  do {
+    next = fruits[Math.floor(Math.random()*fruits.length)];
+  } while(next.name === last);
+
+  current = next;
+  last = next.name;
+
+  document.getElementById("card").textContent =
+    (mode==="tutorial")
+      ? `I want ${current.article} ${current.name}. ${current.emoji}`
+      : `I want ${current.article} ${current.name}.`;
+}
+
+// ---------------- タイマー
+function startTimer(){
+  clearInterval(timer);
+
+  time = (mode==="tutorial") ? 30 : 30;
+
+  timer = setInterval(()=>{
+    time--;
+    updateUI();
+
+    if(time<=0){
+      clearInterval(timer);
+
+      if(mode==="tutorial" && tutorialScore>=20 && !tutorialCleared){
+        tutorialCleared = true;
+        alert("🎉 Tutorial Clear!");
+        updateStart();
+        show("startScreen");
+        return;
+      }
+
+      if(mode==="game"){
+        saveRanking();
+        setTimeout(()=>{
+          openRanking();
+        },500);
+      }
+    }
+  },1000);
+}
+
+// ---------------- 回答
+function answer(f){
+
+  if(f===current.name){
+
+    if(mode==="tutorial"){
+      tutorialScore++;
+    } else {
+      coins+=2;
+    }
+
+    feedback("✔ Correct!");
+    newQ();
+
+  } else {
+    feedback("❌");
+  }
+
+  updateUI();
+}
+
+// ---------------- UI
+function updateUI(){
+  document.getElementById("mode").textContent=mode;
+  document.getElementById("time").textContent="Time:"+time;
+  document.getElementById("coins").textContent="Coins:"+coins;
+}
+
+// ---------------- フィードバック
+function feedback(m){
+  const f=document.getElementById("feedback");
+  f.textContent=m;
+  setTimeout(()=>f.textContent="",500);
+}
+
+// ---------------- チュートリアル
+function startTutorial(){
+  mode="tutorial";
+  tutorialScore=0;
+  coins=0;
+  show("gameScreen");
+  startTimer();
+  newQ();
+  updateUI();
+}
+
+// ---------------- 本ゲーム
+function startGame(){
+  mode="game";
+  coins=0;
+  show("gameScreen");
+  startTimer();
+  newQ();
+  updateUI();
+}
+
+// ---------------- ランキング保存（★今回プレイ強調）
+function saveRanking(){
+
+  // 既存のlatestを全部消す
+  ranking.forEach(r => r.latest = false);
+
+  ranking.push({
+    coins: coins,
+    date: new Date().toLocaleString(),
+    latest: true
+  });
+
+  localStorage.setItem("ranking", JSON.stringify(ranking));
+}
+
+// ---------------- ランキング表示
+function openRanking(){
+  show("rankingScreen");
+
+  document.getElementById("rankingList").innerHTML =
+    ranking
+      .sort((a,b)=>b.coins-a.coins)
+      .map((r,i)=>
+        `<div class="${r.latest ? "latest" : ""}">
+          #${i+1} 💰 ${r.coins} / ${r.date}
+        </div>`
+      )
+      .join("");
+}
+
+// ---------------- 戻る
+function backHome(){
+  show("startScreen");
+}
+
+// ---------------- ボタン更新
+function updateStart(){
+  const btn=document.getElementById("startBtn");
+
+  if(tutorialCleared){
+    btn.textContent="Game Start";
+    btn.onclick=startGame;
+  }
+}
+
+updateStart();
+
+</script>
+
+</body>
+</html>
